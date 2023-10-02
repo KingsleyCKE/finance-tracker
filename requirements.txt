@@ -1,0 +1,8 @@
+Flask
+Flask-RESTful
+config
+Flask-SQLAlchemy
+SQLAlchemy
+Flask-JWT-Extended
+requests
+python-dotenv
