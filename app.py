@@ -31,7 +31,6 @@ db = SQLAlchemy(app)
 def home():
     return "Welcome to the Finance Tracker!"
 
-
 @app.route('/user/<string:username>')
 def user_profile(username):
     # Fetch user details based on username and display them
@@ -134,8 +133,8 @@ class UserLogin(Resource):
 
 class UserResource(Resource):
     @jwt_required()  # Ensure the user is authenticated
-    def get(self, user_id):
-        user = User.query.get(user_id)
+    def get(self, username):
+        user = User.query.filter_by(username=username).first()  # Updated query
         if not user:
             return {"message": "User not found"}, 404
 
@@ -146,8 +145,8 @@ class UserResource(Resource):
         }, 200
 
     @jwt_required()
-    def put(self, user_id):
-        user = User.query.get(user_id)
+    def put(self, username):
+        user = User.query.filter_by(username=username).first()
         if not user:
             return {"message": "User not found"}, 404
 
@@ -174,8 +173,8 @@ class UserResource(Resource):
         return {"message": "User updated successfully"}, 200
 
     @jwt_required()
-    def delete(self, user_id):
-        user = User.query.get(user_id)
+    def delete(self, username):
+        user = User.query.filter_by(username=username).first()
         if not user:
             return {"message": "User not found"}, 404
 
@@ -220,7 +219,7 @@ class GPT4Query(Resource):
 # Add resources to the API
 api.add_resource(UserRegistration, '/register')
 api.add_resource(UserLogin, '/login')
-api.add_resource(UserResource, '/user/<int:user_id>')
+api.add_resource(UserResource, '/user/<string:username>')
 # Add the GPT-4 resource to the API
 api.add_resource(GPT4Query, '/gpt4-query')
 
