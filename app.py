@@ -10,7 +10,9 @@ import re
 import requests
 from dotenv import load_dotenv
 import os
+import logging
 
+logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
 
 # Now you can access the environment variables using os.getenv
@@ -29,13 +31,6 @@ db = SQLAlchemy(app)
 def home():
     return "Welcome to the Finance Tracker!"
 
-@app.route('/register')
-def register():
-    return "Registration page"
-
-@app.route('/login')
-def login():
-    return "Login page"
 
 @app.route('/user/<string:username>')
 def user_profile(username):
@@ -172,7 +167,7 @@ class UserResource(Resource):
         user.username = username
         user.email = email
         if password:
-            user.password = generate_password_hash(password, method='sha256')
+            user.password = generate_password_hash(password, method='pbkdf2:sha256')
 
         db.session.commit()
 
