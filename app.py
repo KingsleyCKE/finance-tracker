@@ -95,30 +95,38 @@ jwt = JWTManager(app)
 # User Registration Resource
 class UserRegistration(Resource):
     def post(self):
-        data = request.get_json()
-        username = data['username']
-        email = data['email']
-        password = data['password']
+        print("POST request received at /register")
+        print(request.data)
+        try:
+            data = request.get_json()
+            username = data['username']
+            email = data['email']
+            password = data['password']
 
-        # Validate email format
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            return {"message": "Invalid email format"}, 400
+            # Validate email format
+            if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+                return {"message": "Invalid email format"}, 400
 
-        # Validate username and password length
-        if len(username) < 3 or len(password) < 6:
-            return {"message": "Username must be at least 3 characters and password at least 6 characters long"}, 400
+            # Validate username and password length
+            if len(username) < 3 or len(password) < 6:
+                return {"message": "Username must be at least 3 characters and password at least 6 characters long"}, 400
 
-        # Check if username already exists
-        existing_user = User.query.filter_by(username=username).first()
-        if existing_user:
-            return {"message": "Username already taken"}, 400
+            # Check if username already exists
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user:
+                return {"message": "Username already taken"}, 400
 
-        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
-        new_user = User(username=username, email=email, password=hashed_password)
-        db.session.add(new_user)
-        db.session.commit()
+            hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+            new_user = User(username=username, email=email, password=hashed_password)
+            db.session.add(new_user)
+            db.session.commit()
 
-        return {"message": "User registered successfully"}, 201
+            return {"message": "User registered successfully"}, 201
+
+        except Exception as e:
+            print(f"Error: {e}")
+            db.session.rollback()
+            return {"message": "An error occurred"}, 500
 
 # User Login Resource
 class UserLogin(Resource):
@@ -183,6 +191,79 @@ class UserResource(Resource):
 
         return {"message": "User deleted successfully"}, 200
 
+class UserIncomeListResource(Resource):
+    @jwt_required()
+    def get(self, username):
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return {"message": "User not found"}, 404
+        
+        incomes = Income.query.filter_by(user_id=user.id).all()
+        return [{"id": income.id, "description": income.description, "amount": income.amount, "date": income.date.strftime('%Y-%m-%d')} for income in incomes], 200
+
+    @jwt_required()
+    def post(self, username):
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return {"message": "User not found"}, 404
+        
+        data = request.get_json()
+        description = data['description']
+        amount = data['amount']
+        date = data['date']
+        
+        new_income = Income(description=description, amount=amount, date=date, user_id=user.id)
+        db.session.add(new_income)
+        db.session.commit()
+
+        return {"message": "Income created successfully", "id": new_income.id}, 201
+
+# Income Resource
+class IncomeResource(Resource):
+    @jwt_required()
+    def get(self, income_id):
+        income = Income.query.get(income_id)
+        if not income:
+            return {"message": "Income not found"}, 404
+        
+        return {
+            "id": income.id,
+            "description": income.description,
+            "amount": income.amount,
+            "date": income.date.strftime('%Y-%m-%d'),
+            "user_id": income.user_id
+        }, 200
+
+    @jwt_required()
+    def put(self, income_id):
+        income = Income.query.get(income_id)
+        if not income:
+            return {"message": "Income not found"}, 404
+
+        data = request.get_json()
+        description = data.get('description', income.description)
+        amount = data.get('amount', income.amount)
+        date = data.get('date', income.date)
+
+        income.description = description
+        income.amount = amount
+        income.date = date
+
+        db.session.commit()
+
+        return {"message": "Income updated successfully"}, 200
+
+    @jwt_required()
+    def delete(self, income_id):
+        income = Income.query.get(income_id)
+        if not income:
+            return {"message": "Income not found"}, 404
+
+        db.session.delete(income)
+        db.session.commit()
+
+        return {"message": "Income deleted successfully"}, 200
+    
 # GPT-4 Integration
 class GPT4Query(Resource):
     def post(self):
@@ -220,6 +301,8 @@ class GPT4Query(Resource):
 api.add_resource(UserRegistration, '/register')
 api.add_resource(UserLogin, '/login')
 api.add_resource(UserResource, '/user/<string:username>')
+api.add_resource(UserIncomeListResource, '/user/<string:username>/incomes')
+api.add_resource(IncomeResource, '/income/<int:income_id>')
 # Add the GPT-4 resource to the API
 api.add_resource(GPT4Query, '/gpt4-query')
 
