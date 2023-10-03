@@ -5,6 +5,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+import psycopg2
 import re
 import requests
 from dotenv import load_dotenv
@@ -19,10 +20,30 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 GPT4_API_KEY = os.getenv("GPT4_API_KEY")
 
 app = Flask(__name__)
-app.config['SQLAlchemy_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] == SQLALCHEMY_TRACK_MODIFICATIONS
+app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = SQLALCHEMY_TRACK_MODIFICATIONS
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
 db = SQLAlchemy(app)
+
+@app.route('/')
+def home():
+    return "Welcome to the Finance Tracker!"
+
+@app.route('/register')
+def register():
+    return "Registration page"
+
+@app.route('/login')
+def login():
+    return "Login page"
+
+@app.route('/user/<string:username>')
+def user_profile(username):
+    # Fetch user details based on username and display them
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return "User not found", 404
+    return f"Profile for user {user.username}"
 
 # Model for Users
 class User(db.Model):
@@ -30,10 +51,10 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
-    transactions = db.relationship('Transaction', backref='user', lazy=True)
-    incomes = db.relationship('Income', backref='user', lazy=True)
-    expenses = db.relationship('Expense', backref='user', lazy=True)
-    savings = db.relationship('Saving', backref='user', lazy=True)
+    transactions = db.relationship('Transaction', backref='user', lazy=True, cascade='all, delete-orphan')
+    incomes = db.relationship('Income', backref='user', lazy=True, cascade='all, delete-orphan')
+    expenses = db.relationship('Expense', backref='user', lazy=True, cascade='all, delete-orphan')
+    savings = db.relationship('Saving', backref='user', lazy=True, cascade='all, delete-orphan')
 
 # Model for Income
 class Income(db.Model):
@@ -74,7 +95,6 @@ class Transaction(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-
 api = Api(app)
 jwt = JWTManager(app)
 
@@ -94,7 +114,12 @@ class UserRegistration(Resource):
         if len(username) < 3 or len(password) < 6:
             return {"message": "Username must be at least 3 characters and password at least 6 characters long"}, 400
 
-        hashed_password = generate_password_hash(password, method='sha256')
+        # Check if username already exists
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            return {"message": "Username already taken"}, 400
+
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
         new_user = User(username=username, email=email, password=hashed_password)
         db.session.add(new_user)
         db.session.commit()
