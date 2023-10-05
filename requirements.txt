@@ -6,3 +6,4 @@ SQLAlchemy
 Flask-JWT-Extended
 requests
 python-dotenv
+Flask-CORS
