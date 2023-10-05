@@ -5,6 +5,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
+from flask_cors import CORS
 import psycopg2
 import re
 import requests
@@ -22,6 +23,7 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 GPT4_API_KEY = os.getenv("GPT4_API_KEY")
 
 app = Flask(__name__)
+CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = SQLALCHEMY_TRACK_MODIFICATIONS
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
@@ -297,6 +299,25 @@ class GPT4Query(Resource):
             error_details = response.json().get('error', 'Unknown error')
             return {"message": f"Error querying GPT-4: {error_details}"}, 500
 
+class DashboardDataResource(Resource):
+    @jwt_required()
+    def get(self, username):
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return {"message": "User not found"}, 404
+
+        incomes = [{"id": income.id, "description": income.description, "amount": income.amount, "date": income.date.strftime('%Y-%m-%d')} for income in user.incomes]
+        expenses = [{"id": expense.id, "description": expense.description, "amount": expense.amount, "date": expense.date.strftime('%Y-%m-%d')} for expense in user.expenses]
+        savings = [{"id": saving.id, "description": saving.description, "amount": saving.amount, "date": saving.date.strftime('%Y-%m-%d')} for saving in user.savings]
+        transactions = [{"id": transaction.id, "description": transaction.description, "amount": transaction.amount, "date": transaction.date.strftime('%Y-%m-%d')} for transaction in user.transactions]
+
+        return {
+            "incomes": incomes,
+            "expenses": expenses,
+            "savings": savings,
+            "transactions": transactions
+        }, 200
+
 # Add resources to the API
 api.add_resource(UserRegistration, '/register')
 api.add_resource(UserLogin, '/login')
@@ -305,6 +326,7 @@ api.add_resource(UserIncomeListResource, '/user/<string:username>/incomes')
 api.add_resource(IncomeResource, '/income/<int:income_id>')
 # Add the GPT-4 resource to the API
 api.add_resource(GPT4Query, '/gpt4-query')
+api.add_resource(DashboardDataResource, '/user/<string:username>/dashboard-data')
 
 # Run the Flask app
 if __name__ == '__main__':
